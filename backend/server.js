@@ -1,31 +1,57 @@
 require('dotenv').config();
 const express = require('express');
-const http = require('http');
-const cors = require('cors');
+const http    = require('http');
+const cors    = require('cors');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
 
-
-app.use(cors({
-  origin: process.env.CLIENT_URL, // uses your env variable
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-
-// your routes below...
-app.use('/api/users', userRoutes);
-
-// Environment variables
-const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8081';
+// ── Environment variables ─────────────────────────────────────────────────────
+const PORT        = process.env.PORT        || 5005;
+const CLIENT_URL  = process.env.CLIENT_URL  || 'http://localhost:8085';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/reas';
 
-// Database Connection
+// ── CORS — accept localhost, Vercel deployments, and Railway deployments ──────
+const allowedOriginFn = (origin, callback) => {
+  // Allow server-to-server calls (no origin header)
+  if (!origin) return callback(null, true);
+
+  const allowed = [
+    CLIENT_URL,
+    'http://localhost:8085',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ];
+
+  if (
+    allowed.includes(origin) ||
+    /\.vercel\.app$/.test(origin) ||
+    /\.railway\.app$/.test(origin) ||
+    /\.up\.railway\.app$/.test(origin)
+  ) {
+    callback(null, true);
+  } else {
+    console.warn(`[CORS] Blocked origin: ${origin}`);
+    callback(new Error('CORS policy: origin not allowed'));
+  }
+};
+
+const corsOptions = {
+  origin: allowedOriginFn,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // pre-flight for all routes
+app.use(express.json());
+
+// ── Database Connection ───────────────────────────────────────────────────────
 mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 10000, // Give Atlas 10s to respond
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
 })
   .then(() => console.log('✅ Connected to MongoDB Atlas successfully'))
@@ -36,17 +62,9 @@ mongoose.connect(MONGODB_URI, {
   });
 
 mongoose.connection.on('disconnected', () => console.warn('⚠️  MongoDB disconnected'));
-mongoose.connection.on('reconnected', () => console.log('✅ MongoDB reconnected'));
+mongoose.connection.on('reconnected',  () => console.log('✅ MongoDB reconnected'));
 
-// Middleware
-app.use(cors({
-  origin: CLIENT_URL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-app.use(express.json());
-
-// Routes
+// ── Routes ────────────────────────────────────────────────────────────────────
 const alertsRoutes = require('./routes/alerts');
 const usersRoutes  = require('./routes/users');
 const statsRoutes  = require('./routes/stats');
@@ -57,32 +75,30 @@ app.use('/api/users',  usersRoutes);
 app.use('/api/stats',  statsRoutes);
 app.use('/api/ml',     mlRoutes);    // AI road analysis proxy → Python :8000
 
-// Setup Socket.IO Server
-const io = new Server(server, {
-  cors: {
-    origin: CLIENT_URL,
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
-app.set('io', io); // so routes can emit events
-
-const Alert = require('./models/Alert');
-const User = require('./models/User');
-
-// REST API Endpoints
+// Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Backend is running correctly' });
 });
 
-// Socket.IO Connection Handling
+// ── Socket.IO ─────────────────────────────────────────────────────────────────
+const io = new Server(server, {
+  cors: {
+    origin: allowedOriginFn,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+app.set('io', io);
+
+const Alert = require('./models/Alert');
+const User  = require('./models/User');
+
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
 
-  // Initial Data
   socket.on('get_initial_data', async () => {
     try {
-      const alerts = await Alert.find().sort({ reportedAt: -1 }).limit(50);
+      const alerts      = await Alert.find().sort({ reportedAt: -1 }).limit(50);
       const leaderboard = await User.find().sort({ karmaPoints: -1 }).limit(10);
       socket.emit('initial_data', { alerts, leaderboard });
     } catch (error) {
@@ -90,10 +106,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Example Event
   socket.on('message', (dataMsg) => {
-    console.log(`Message from client:`, dataMsg);
-    // Broadcast back to all clients
+    console.log('Message from client:', dataMsg);
     io.emit('message', { sender: socket.id, content: dataMsg });
   });
 
@@ -102,7 +116,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start the server
+// ── Start ─────────────────────────────────────────────────────────────────────
 server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`   CLIENT_URL = ${CLIENT_URL}`);
 });
