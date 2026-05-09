@@ -8,6 +8,16 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
+
+app.use(cors({
+  origin: process.env.CLIENT_URL, // uses your env variable
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
+// your routes below...
+app.use('/api/users', userRoutes);
+
 // Environment variables
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8081';
