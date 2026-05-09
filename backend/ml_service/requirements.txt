@@ -1,0 +1,23 @@
+# REAS ML Microservice — Python Dependencies
+# Tested with Python 3.14 on Windows
+#
+# Install all at once:
+#   pip install fastapi "uvicorn[standard]" opencv-python-headless Pillow python-multipart numpy
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Deep Learning — CPU build (Python 3.14 compatible)
+# Install separately via: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+# Image processing
+opencv-python-headless
+Pillow
+numpy
+
+# File upload support
+python-multipart
