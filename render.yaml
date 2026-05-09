@@ -1,0 +1,28 @@
+# render.yaml — Auto-configures the REAS backend on Render.com
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: reas-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000          # Render assigns its own port; this is the internal one
+      - key: NODE_ENV
+        value: production
+      # ── Set these in the Render dashboard → Environment tab ──
+      - key: CLIENT_URL
+        sync: false           # must be set manually in dashboard
+      - key: MONGODB_URI
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: FAST2SMS_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
